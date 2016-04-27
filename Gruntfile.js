@@ -26,6 +26,7 @@ module.exports = function(grunt) {
 
             packages: {
                 src: [
+                    'src/pkg/core/EventBus.js',
                     'src/pkg/core/SAEpisode.js',
                     'src/pkg/core/SAParser.js',
                     'src/pkg/core/SAViews.js',

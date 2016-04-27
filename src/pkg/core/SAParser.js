@@ -4,14 +4,17 @@
 
 var SAParser = (function(SAEpisode){
     
-    function SAParser(){
-        
+    function SAParser(eventBus){
+
+        this.eventBus = eventBus;
+
     }
     
     SAParser.prototype = {
         
         parseWiki: function(excludedIndex, titleOverride){
-            var title = titleOverride || $('head').find('title').text().replace(/(?:List of |^)([\w\s.]+?)(?: (?:\(.*|episodes))?(?: - Wikipedia, the free encyclopedia)/,get$1);
+            //var title = titleOverride || $('head').find('title').text().replace(/(?:List of |^)([\w\s.]+?)(?: (?:\(.*|episodes))?(?: - Wikipedia, the free encyclopedia)/,getGroup(1));
+            var title = titleOverride || /(?:List of |^)([\w\s.]+?)(?: (?:\(.*|episodes))?(?: - Wikipedia, the free encyclopedia)/.exec($('head').find('title').text())[1];
             var episodes = {title:title,list:[]};
             var season = 0;
 
@@ -27,7 +30,7 @@ var SAParser = (function(SAEpisode){
                     }
 
                     var epNumber = ('00'+(i+1)).substr(-2),
-                        epTitle = $(e).text().replace(/\"(.+)\".*/,get$1),
+                        epTitle = /("|')?(.+)\1/.exec($(e).text())[2],
                         date = $(e).parent().find('.published').text();
 
                     date && episodes.list.push(new SAEpisode(title, season, epNumber, epTitle, date));
@@ -41,8 +44,6 @@ var SAParser = (function(SAEpisode){
     /********************
      * PRIVATE METHODS
      ********************/
-
-    function get$1(a,b){return b;}
     
     return SAParser;
     

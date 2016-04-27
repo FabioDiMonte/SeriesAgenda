@@ -2,7 +2,7 @@
  * Created by fdimonte on 10/12/15.
  */
 
-var SAMain = function($, SAViews, SAParser){
+var SAMain = function($, EventBus, SAViews, SAParser){
 
     /**
      * SAMain Class
@@ -13,8 +13,13 @@ var SAMain = function($, SAViews, SAParser){
         //localStorage.removeItem('SeriesAgenda');
         this.agenda = (localStorage && JSON.parse(localStorage.getItem('SeriesAgenda'))) || {};
 
-        this.parser = new SAParser();
-        this.views = new SAViews();
+        this.eventBus = new EventBus();
+        this.parser = new SAParser(this.eventBus);
+        this.views = new SAViews(this.eventBus);
+
+        this.eventBus.toggleLog(true);
+        
+        this.init();
     }
 
     /**
@@ -24,30 +29,38 @@ var SAMain = function($, SAViews, SAParser){
      */
     SAMain.prototype = {
         
-        parseEpisodes: function(excludedIndex, titleOverride){
+        init: function(){
 
-            this.views.switchToView(this.views.PARSER_VIEW, this.parser.parseWiki(excludedIndex,titleOverride));
-            
-            //var eps = parseEpisodesWiki();
-            //var ovl = showOverlay();
-            //
-            //var $form = getEpisodesForm(eps);
-            //
-            //ovl.find('#SAContent')
-            //    .append($form)
-            //    .append($('<button/>').text('save').on('click',function(e){
-            //        this.saveToMyAgenda(eps.title,eps.list);
-            //    }.bind(this)));
-            
+            addEvent.call(this , 'switchview:agenda' , this.displayAgenda);
+            addEvent.call(this , 'switchview:parser' , this.displayParser);
+            addEvent.call(this , 'session:parse'     , this.parseEpisodes);
+            addEvent.call(this , 'storage:save'      , this.saveToMyAgenda);
+            addEvent.call(this , 'storage:load'      , this.showMyAgenda);
+
+        },
+
+        displayAgenda: function(){
+            this.views.switchToView(this.views.AGENDA_VIEW, this.agenda);
+        },
+
+        displayParser: function(){
+            this.views.switchToView(this.views.PARSER_VIEW, this.parser.parseWiki());
+        },
+
+        parseEpisodes: function(data){
+            this.views.switchToView(this.views.PARSER_VIEW, this.parser.parseWiki(data.excluded,data.title));
         },
 
         saveToMyAgenda: function(title,episodes){
-            //this.agenda[title] || (this.agenda[title] = []);
-            this.agenda.episodes || (this.agenda.episodes = []);
-
+            var pathname = window.location.pathname;
+            this.agenda[pathname] || (this.agenda[pathname] = {});
+            
+            this.agenda[pathname].title = title;
+            this.agenda[pathname].episodes = [];
+            
             for(var e in episodes){
                 if(episodes.hasOwnProperty(e)){
-                    this.agenda.episodes.push(episodes[e]);
+                    this.agenda[pathname].episodes.push(episodes[e]);
                 }
             }
             localStorage.setItem('SeriesAgenda',JSON.stringify(this.agenda));
@@ -81,156 +94,14 @@ var SAMain = function($, SAViews, SAParser){
 
         return compared;
     }
-
-    //function get$1(a,b){return b;}
-    //function parseEpisodesWiki(excludedIndex){
-    //    var title = $('head').find('title').text().replace(/(?:List of |^)([\w\s.]+?)(?: (?:\(.*|episodes))?(?: - Wikipedia, the free encyclopedia)/,get$1);
-    //    var episodes = {title:title,list:[]};
-    //    var season = 0;
-    //
-    //    $('table').each(function(i,e){
-    //        var $summary = $(e).find('.summary');
-    //        if($summary.length==0 || (excludedIndex && ~excludedIndex.indexOf(i))) return;
-    //
-    //        season++;
-    //        $summary.each(function(i,e){
-    //            if($(e).hasClass('navbox-title')) {
-    //                season--;
-    //                return;
-    //            }
-    //
-    //            var epNumber = ('00'+(i+1)).substr(-2),
-    //                epTitle = $(e).text().replace(/\"(.+)\".*/,get$1),
-    //                date = $(e).parent().find('.published').text();
-    //
-    //            date && episodes.list.push(new SAEpisode(title, season, epNumber, epTitle, date));
-    //        });
-    //    });
-    //    return episodes;
-    //}
-
-    //function showOverlay(){
-    //    return getOverlay().appendTo('body');
-    //}
-
-    //function hideOverlay(){
-    //    $('#SeriesAgenda').remove();
-    //}
-
-    /********************
-     * DOM METHODS
-     ********************/
-
-    //function setupStyles(){
-    //    var $style = $('<style/>').attr('id','SeriesAgenda-styles');
-    //
-    //    $style
-    //        .append('#SeriesAgenda ul {list-style: outside none none; margin: 0; padding: 0 8px;}')
-    //        .append('.sa-episode label {padding: 4px 2px 2px; display: block; margin: 1px 0;}')
-    //        .append('.sa-episode input {display: none;}')
-    //        .append('.sa-episode input + label {background-color: #dedede;}')
-    //        .append('.sa-episode input:checked + label {background-color: #6f9;}');
-    //
-    //    $('head').append($style);
-    //}
-
-    //function getOverlay(){
-    //    var $agenda = $('#SeriesAgenda');
-    //
-    //    if($agenda.length===0){
-    //
-    //        var $mask    = $('<div/>').attr('id','SAMask'),
-    //            $overlay = $('<div/>').attr('id','SAOverlay'),
-    //            $content = $('<div/>').attr('id','SAContent');
-    //
-    //        $agenda = $('<div/>').attr('id','SeriesAgenda').append($mask).append($overlay.append($content));
-    //
-    //        $mask.css({
-    //            position:'fixed',
-    //            width: '100%',
-    //            height: '100%',
-    //            background: 'rgba(0,0,0,0.5)',
-    //            top: '0',
-    //            left: '0',
-    //            zIndex: 1000
-    //        });
-    //
-    //        $overlay.css({
-    //            width: '80%',
-    //            height: '80%',
-    //            background: '#fff',
-    //            border: '1px solid #777',
-    //            borderRadius: '4px',
-    //            top: '50%',
-    //            left: '50%',
-    //            transform: 'translate(-50%, -50%)',
-    //            position: 'fixed',
-    //            padding: '8px 0',
-    //            overflow: 'hidden',
-    //            zIndex: 1001
-    //        });
-    //
-    //        $content.css({
-    //            width: '100%',
-    //            height: '100%',
-    //            overflow: 'auto'
-    //        });
-    //
-    //        $mask.on('click',function(e){
-    //            hideOverlay();
-    //        });
-    //
-    //    }
-    //
-    //    return $agenda;
-    //}
-
-    //function getEpisodesForm(episodes){
-    //    var $form = $('<form/>').addClass('sa-form').css({
-    //        overflow: 'auto'
-    //    });
-    //
-    //    $form.append($('<input/>').attr('type','text').val(episodes.title));
-    //
-    //    var $list,$lists = $('<div/>');
-    //    var season = 0;
-    //
-    //    for(var e in episodes.list){
-    //        if(episodes.list.hasOwnProperty(e)){
-    //            if(episodes.list[e].season>season) {
-    //                season = episodes.list[e].season;
-    //
-    //                $('<label/>')
-    //                    .append($('<input/>').attr('type','checkbox').prop('checked',true)
-    //                        .on('change',function(e){
-    //                            var $t = $(e.currentTarget);
-    //                            $t.parent().next().find('input').prop('checked',$t.prop('checked'));
-    //                        })
-    //                    )
-    //                    .append('Season #'+season)
-    //                    .appendTo($lists);
-    //
-    //                $list = $('<ul/>').appendTo($lists);
-    //            }
-    //
-    //            $list && $list.append(getEpisodeItem(episodes.list[e]));
-    //        }
-    //    }
-    //
-    //    return $form.append($lists);
-    //}
-
-    //function getEpisodeItem(episodeInfo){
-    //    var $episode = $('<li/>').addClass('sa-episode');
-    //    var ID = episodeInfo.fullNumber();
-    //
-    //    $episode
-    //        .append($('<input/>').attr('id',ID).attr('type','checkbox').prop('checked',true))
-    //        .append($('<label/>').attr('for',ID).text(episodeInfo.fullName()));
-    //
-    //    return $episode;
-    //}
+    
+    function addEvent(event, callback){
+        this.eventBus.on(event, callback.bind(this));
+    }
+    function removeEvent(event){
+        this.eventBus.off(event);
+    }
 
     return SAMain;
 
-}(jQuery, SAViews, SAParser);
+}(jQuery, EventBus, SAViews, SAParser);

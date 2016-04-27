@@ -9,16 +9,21 @@ var SAViews = (function(){
      * 
      * @constructor
      */
-    function SAViews(){
+    function SAViews(eventBus){
 
+        this.eventBus = eventBus;
+        
         this.options = {
             IDs : {
                 main        : 'SeriesAgenda',
                 mask        : 'sa-mask',
                 overlay     : 'sa-overlay',
-                content     : 'sa-content'
+                content     : 'sa-content',
+                navigation  : 'sa-navigation',
+                parserForm  : 'sa-form-episodes'
             },
             classes : {
+                seasonItem  : 'sa-season',
                 episodeItem : 'sa-episode'
             }
         };
@@ -27,6 +32,7 @@ var SAViews = (function(){
         this.$baseView = getBaseView.call(this);
 
         this.switchToView(this.MAIN_VIEW);
+
     }
 
     /**
@@ -36,9 +42,9 @@ var SAViews = (function(){
      */
     SAViews.prototype = {
         
-        MAIN_VIEW: 'MAIN_VIEW',
-        PARSER_VIEW: 'PARSER_VIEW',
-        AGENDA_VIEW: 'AGENDA_VIEW',
+        MAIN_VIEW   : 'MAIN_VIEW',
+        PARSER_VIEW : 'PARSER_VIEW',
+        AGENDA_VIEW : 'AGENDA_VIEW',
 
         switchToView: function( view, data ){
             var content,
@@ -46,10 +52,10 @@ var SAViews = (function(){
             
             switch(view){
                 case this.MAIN_VIEW:
-                    content = getMainContent(data);
+                    content = getMainContent.call(this,data);
                     break;
                 case this.PARSER_VIEW:
-                    content = getEpisodesForm(data);
+                    content = getParserContent.call(this,data);
                     break;
                 case this.AGENDA_VIEW:
                     content = data;
@@ -87,12 +93,32 @@ var SAViews = (function(){
      ********************/
 
     function maskEvent(e){
+        e.preventDefault();
         hideOverlay.call(this);
     }
 
     function episodeToggle(e){
+        e.preventDefault();
         var $t = $(e.currentTarget);
         $t.parent().next().find('input').prop('checked',$t.prop('checked'));
+    }
+
+    function triggerEvent(event,data,e){
+        e.preventDefault();
+        this.eventBus.trigger(event,data);
+    }
+
+    function refreshEpisodes(e){
+        var title = $(e.currentTarget).prev().find('input[type=text]').val();
+        var data = {
+            title    : title,
+            excluded : []
+        };
+        triggerEvent.call(this,'session:parse',data,e);
+    }
+
+    function saveEpisodes(e){
+        triggerEvent.call(this,'storage:save');
     }
 
     /********************
@@ -119,87 +145,145 @@ var SAViews = (function(){
 
         if($agenda.length>0) return $agenda;
         
-        var $mask    = $('<div/>').attr('id', this.options.IDs.mask),
-            $overlay = $('<div/>').attr('id', this.options.IDs.overlay),
-            $content = $('<div/>').attr('id', this.options.IDs.content);
+        var $mask       = $('<div/>').attr('id', this.options.IDs.mask),
+            $overlay    = $('<div/>').attr('id', this.options.IDs.overlay),
+            $content    = $('<div/>').attr('id', this.options.IDs.content),
+            $navigation = $('<div/>').attr('id', this.options.IDs.navigation).append(getNavigation.call(this));
 
+        var overlaySize = '80%';
+        var contentSize = '100%';
+        var navigationHeight = '30px';
+        
         $mask.css({
-            position:'fixed',
-            width: '100%',
-            height: '100%',
             background: 'rgba(0,0,0,0.5)',
-            top: '0',
+            height: '100%',
             left: '0',
+            position:'fixed',
+            top: '0',
+            width: '100%',
             zIndex: 1000
         });
 
         $overlay.css({
-            width: '80%',
-            height: '80%',
             background: '#fff',
-            border: '1px solid #777',
             borderRadius: '4px',
-            top: '50%',
+            height: overlaySize,
             left: '50%',
-            transform: 'translate(-50%, -50%)',
-            position: 'fixed',
-            padding: '8px 0',
             overflow: 'hidden',
+            position: 'fixed',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: overlaySize,
             zIndex: 1001
         });
 
         $content.css({
-            width: '100%',
-            height: '100%',
-            overflow: 'auto'
+            boxSizing: 'border-box',
+            height: contentSize,
+            paddingTop: navigationHeight,
+            width: contentSize
+        });
+        
+        $navigation.css({
+            height: navigationHeight,
+            left: '0',
+            position: 'absolute',
+            top: '0',
+            width: contentSize
         });
 
         $mask.on('click',maskEvent.bind(this));
 
-        return $('<div/>').attr('id',this.options.IDs.main).append($mask).append($overlay.append($content));
+        return $('<div/>').attr('id',this.options.IDs.main).append($mask).append($overlay.append($navigation).append($content));
+    }
+    
+    // Navigation buttons
+    function getNavigation(){
+        var $nav = $('<nav/>')
+            .append($('<button/>').attr('type','button').text('my agenda').on('click', triggerEvent.bind(this,'switchview:agenda',null)))
+            .append($('<button/>').attr('type','button').text('episodes parser').on('click', triggerEvent.bind(this,'switchview:parser',null)));
+
+        return $nav;
     }
     
     // Main view
     function getMainContent(data){
-        return $('<div/>').html('ciao');
+        var $main = $('<div/>');
+
+        return $main;
+    }
+    
+    // Parser view
+    function getParserContent(data){
+        var $form     = $('<form/>').attr('id',this.options.IDs.parserForm).on('submit',function(e){e.preventDefault();}),
+            $left     = $('<div/>'),
+            $right    = $('<div/>'),
+            $title    = $('<input/>').attr('type','text').val(data.title),
+            $episodes = getEpisodesList.call(this,data);
+
+        $left
+            .append($('<label/>').text('title').append($title))
+            .append($('<button/>').attr('type','button').text('refresh').on('click', refreshEpisodes.bind(this)))
+            .append($('<button/>').attr('type','button').text('save').on('click', saveEpisodes.bind(this)));
+
+        $form.css({
+            boxSizing: 'border-box',
+            height: '100%',
+            padding: '8px 0 8px 8px'
+        });
+        
+        $title.css({
+            boxSizing: 'border-box',
+            width: '100%'
+        });
+
+        $left.css({
+            display: 'inline-block',
+            verticalAlign: 'top',
+            width: '20%'
+        });
+
+        $right.css({
+            display: 'inline-block',
+            height: '100%',
+            overflow: 'auto',
+            width: '80%'
+        });
+        
+        return $form.append($left).append($right.append($episodes));
     }
 
     // Episodes list
-    function getEpisodesForm(episodes){
-        var $form = $('<form/>').addClass('sa-form').css({
-            overflow: 'auto'
-        });
-
-        $form.append($('<input/>').attr('type','text').val(episodes.title));
-
-        var $list,$lists = $('<div/>');
-        var season = 0;
+    function getEpisodesList(episodes){
+        var $episodes,
+            $seasons = $('<div/>'),
+            season = 0;
 
         for(var e in episodes.list){
             if(episodes.list.hasOwnProperty(e)){
                 if(episodes.list[e].season>season) {
                     season = episodes.list[e].season;
 
-                    $('<label/>')
-                        .append($('<input/>').attr('type','checkbox').prop('checked',true)
-                            .on('change',episodeToggle)
-                        )
-                        .append('Season #'+season)
-                        .appendTo($lists);
+                    $('<div/>').addClass(this.options.classes.seasonItem)
+                        .append(
+                            $('<label/>')
+                                .append($('<input/>').attr('type','checkbox').prop('checked',true).on('change',episodeToggle))
+                                .append('Season #'+season))
+                        .appendTo($seasons);
 
-                    $list = $('<ul/>').appendTo($lists);
+                    $episodes = $('<ul/>').appendTo($seasons);
                 }
 
-                $list && $list.append(getEpisodeItem(episodes.list[e]));
+                $episodes && $episodes.append(getEpisodeItem.call(this,episodes.list[e]));
             }
         }
 
-        return $form.append($lists);
+        return $seasons.children();
     }
 
     // Episode item
     function getEpisodeItem(saEpisode){
-        var $episode = $('<li/>').addClass('sa-episode');
+        var $episode = $('<li/>').addClass(this.options.classes.episodeItem);
         var ID = saEpisode.fullNumber();
 
         $episode
